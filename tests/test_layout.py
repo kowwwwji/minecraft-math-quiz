@@ -71,3 +71,17 @@ class LayoutTest(unittest.TestCase):
         self.assertLessEqual(building(self.cfg).volume, 32768)
         self.assertLessEqual(clear_area(self.cfg).volume, 32768)
         self.assertEqual(building(self.cfg).coords(), "0 112 0 48 125 10")
+
+    def test_button_backs_are_in_the_wall_behind_buttons(self):
+        r = self.rooms[0]
+        self.assertEqual(r.button_backs, ((2, 121, 10), (4, 121, 10), (6, 121, 10)))
+
+    def test_goal_floor_and_fireworks_above_roof(self):
+        g = goal_room(self.cfg)
+        self.assertEqual(g.floor.coords(), "41 119 1 47 119 9")
+        self.assertEqual(g.fireworks, ((42.5, 126.0, 5.5), (44.5, 126.0, 5.5), (46.5, 126.0, 5.5)))
+        self.assertGreater(min(y for _, y, _ in g.fireworks), building(self.cfg).y2)
+
+    def test_config_defaults_for_lives_and_fireworks(self):
+        self.assertEqual((self.cfg.lives, self.cfg.tnt_fuse_ticks), (3, 40))
+        self.assertEqual((self.cfg.firework_volleys, self.cfg.firework_interval_ticks), (3, 15))

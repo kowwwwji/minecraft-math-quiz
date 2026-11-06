@@ -58,6 +58,7 @@ class Room:
     ladder: Box  # はしご列（常に開いた縦穴。穴の底から部屋へ戻る経路）
     pit_bottom: FPos  # 床復帰前の退避 tp 先（水の中央）
     buttons: tuple[Pos, Pos, Pos]
+    button_backs: tuple[Pos, Pos, Pos]  # ボタンの裏の壁ブロック。色を付けて的にする
     question_pos: FPos
     choice_pos: tuple[FPos, FPos, FPos]
     entry: FPos  # 入口の立ち位置（tp 先）
@@ -67,9 +68,10 @@ class Room:
 class GoalRoom:
     number: int  # room_count + 1
     interior: Box
-    ceiling: Box
+    ceiling: Box  # ガラス。屋根の上の花火を見せる
+    floor: Box  # 光るブロック。天井がガラスなので床を光源にする
     chest: Pos
-    fireworks: tuple[FPos, FPos, FPos]
+    fireworks: tuple[FPos, FPos, FPos]  # 屋根の 1 段上。子どもと同じ部屋で爆発させない
     banner_pos: FPos  # 「ゴール！」表示の位置
 
 
@@ -116,6 +118,7 @@ def _room(cfg: Config, number: int) -> Room:
         ladder=Box(i.x1, fy - cfg.pit_depth, i.z2, i.x1, fy + 1, i.z2),
         pit_bottom=((shaft.x1 + shaft.x2) // 2 + 0.5, fy - cfg.pit_depth + 1, (shaft.z1 + shaft.z2) // 2 + 0.5),
         buttons=buttons,
+        button_backs=tuple((bx, by, bz + 1) for bx, by, bz in buttons),
         question_pos=_display_pos(i, cx, fy + 4.0),
         choice_pos=tuple(_display_pos(i, bx, fy + 3.0) for bx, _, _ in buttons),
         entry=(i.x1 + 0.5, fy + 1, cfg.origin_z + 1.5),
@@ -132,12 +135,14 @@ def goal_room(cfg: Config) -> GoalRoom:
     i = _interior(cfg, number)
     cx = i.x1 + cfg.room_dx // 2
     cz = (i.z1 + i.z2) // 2
+    roof_y = building(cfg).y2 + 1
     return GoalRoom(
         number=number,
         interior=i,
         ceiling=_ceiling(i),
+        floor=Box(i.x1, fy, i.z1, i.x2, fy, i.z2),
         chest=(cx, fy + 1, cz),
-        fireworks=tuple((x + 0.5, float(fy + 2), cz + 0.5) for x in (cx - 2, cx, cx + 2)),
+        fireworks=tuple((x + 0.5, float(roof_y), cz + 0.5) for x in (cx - 2, cx, cx + 2)),
         banner_pos=_display_pos(i, cx, fy + 4.0),
     )
 

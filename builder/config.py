@@ -22,6 +22,10 @@ class Config:
     restore_ticks: int = 60  # 不正解から床復帰までの時間（3 秒）
     question_scale: float = 4.0  # text_display の拡大率（遠くからでも読めるように）
     choice_scale: float = 3.0
+    lives: int = 3  # 不正解できる回数（ダンジョン全体の通算）
+    tnt_fuse_ticks: int = 40  # 3 回目の不正解で出る TNT の導火線（2 秒）
+    firework_volleys: int = 3  # ゴール部屋に入ったときの花火の回数
+    firework_interval_ticks: int = 15
 
 
 # レベル名 → (答えの上限 #max, 引き算あり #sub)
