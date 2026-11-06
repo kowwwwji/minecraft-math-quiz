@@ -13,7 +13,7 @@ class GameTest(unittest.TestCase):
             "load", "setup", "setup/build", "start", "quit", "tick", "check",
             "press/1", "press/2", "press/3", "correct", "wrong", "restore", "activate",
             "question", "goal", "level/easy", "level/normal", "level/hard",
-            "wrong/drop", "boom", "boom/kill", "gameover",
+            "wrong/drop", "boom", "boom/kill", "gameover", "goal/enter", "goal/fireworks",
         ):
             self.assertIn(k, self.fns)
 
@@ -116,10 +116,32 @@ class GameTest(unittest.TestCase):
     def test_goal_dispatch_and_quit(self):
         self.assertIn("execute if score #room mq matches 6 run function mathquiz:goal", self.fns["activate"])
         self.assertIn("execute if score #room mq matches 1..5 run function mathquiz:question", self.fns["activate"])
-        self.assertEqual(self.fns["goal"].count("summon minecraft:firework_rocket"), 3)
+        self.assertEqual(self.fns["goal/fireworks"].count("summon minecraft:firework_rocket"), 3)
         # コロンを含むキーは引用しないと SNBT として不正
-        self.assertIn('components:{"minecraft:fireworks":{flight_duration:1b', self.fns["goal"])
+        self.assertIn('components:{"minecraft:fireworks":{flight_duration:1b', self.fns["goal/fireworks"])
         self.assertIn("tp @a @e[type=minecraft:marker,tag=mq_return,limit=1]", self.fns["quit"])
+
+    def test_goal_waits_for_the_child_to_enter(self):
+        self.assertNotIn("firework", self.fns["goal"])
+        self.assertNotIn("#active", self.fns["goal"])
+        self.assertIn(
+            "execute if score #active mq matches 1 if score #room mq matches 6 "
+            "if entity @a[x=41,y=120,z=1,dx=6,dy=4,dz=8] run function mathquiz:goal/enter",
+            self.fns["tick"],
+        )
+        enter = self.fns["goal/enter"].splitlines()
+        self.assertEqual(enter[0], "scoreboard players set #active mq 0")
+        self.assertIn("scoreboard players set #fw mq 3", enter)
+        self.assertEqual(enter[-1], "function mathquiz:goal/fireworks")
+
+    def test_fireworks_launch_above_roof_in_volleys(self):
+        body = self.fns["goal/fireworks"]
+        self.assertEqual(body.count("summon minecraft:firework_rocket"), 3)
+        self.assertIn("summon minecraft:firework_rocket 42.5 126.0 5.5 ", body)
+        self.assertIn("scoreboard players remove #fw mq 1", body)
+        self.assertIn("execute if score #fw mq matches 1.. run schedule function mathquiz:goal/fireworks 15t", body)
+        for name in ("start", "quit"):
+            self.assertIn("schedule clear mathquiz:goal/fireworks", self.fns[name], name)
 
     def test_relative_coords_only_with_at(self):
         for name, body in self.fns.items():

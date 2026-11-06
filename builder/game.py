@@ -239,6 +239,7 @@ def _cancel_timers() -> list[str]:
     return [
         "schedule clear mathquiz:restore",
         "schedule clear mathquiz:boom/kill",
+        "schedule clear mathquiz:goal/fireworks",
         f"kill {TNT}",
     ]
 
@@ -264,17 +265,34 @@ def _question(cfg: Config) -> list[str]:
 
 
 def _goal(cfg: Config) -> list[str]:
+    # 部屋 5 の正解で呼ばれる。表示を切り替えるだけで、演出は子どもが入ってから（goal/enter）
     g = goal_room(cfg)
     return [
-        "scoreboard players set #active mq 0",
+        set_display_text(DISPLAY_TAGS[0], {"text": "ゴール！", "color": "gold", "bold": True}),
+        tp_display(DISPLAY_TAGS[0], g.banner_pos),
+        *(set_display_text(tag, {"text": ""}) for tag in DISPLAY_TAGS[1:]),
+    ]
+
+
+def _goal_enter(cfg: Config) -> list[str]:
+    return [
+        "scoreboard players set #active mq 0",  # 先頭で止めて、tick が毎回呼ばないようにする
         # subtitle は title の表示時に出るので先に設定する
         title("subtitle", {"text": "ぜんぶ せいかい！"}),
         title("title", {"text": "ゴール！", "color": "gold"}),
         sound("minecraft:entity.player.levelup", 1.2),
+        f"scoreboard players set #fw mq {cfg.firework_volleys}",
+        "function mathquiz:goal/fireworks",
+    ]
+
+
+def _goal_fireworks(cfg: Config) -> list[str]:
+    # 屋根の上で上げる（花火は近くの生物にダメージを与えるので、ガラス越しに見せる）
+    g = goal_room(cfg)
+    return [
         *(_firework(pos, color) for pos, color in zip(g.fireworks, FIREWORK_COLORS)),
-        set_display_text(DISPLAY_TAGS[0], {"text": "ゴール！", "color": "gold", "bold": True}),
-        tp_display(DISPLAY_TAGS[0], g.banner_pos),
-        *(set_display_text(tag, {"text": ""}) for tag in DISPLAY_TAGS[1:]),
+        "scoreboard players remove #fw mq 1",
+        f"execute if score #fw mq matches 1.. run schedule function mathquiz:goal/fireworks {cfg.firework_interval_ticks}t",
     ]
 
 
@@ -298,6 +316,9 @@ def game_functions(cfg: Config) -> dict[str, str]:
             # 爆発で死んだ子がリスポーンしたら（@e は生きているプレイヤーだけ拾う）遊びを終える
             "execute if score #active mq matches 2 as @e[type=minecraft:player,scores={mq_deaths=1..}] "
             "run function mathquiz:gameover",
+            # ゴール部屋に入った瞬間に演出を始める
+            f"execute if score #active mq matches 1 if score #room mq matches {cfg.room_count + 1} "
+            f"if entity @a[{goal_room(cfg).interior.selector()}] run function mathquiz:goal/enter",
         ],
         "check": _check(cfg),
         **{f"press/{k}": _press(k) for k in (1, 2, 3)},
@@ -311,6 +332,8 @@ def game_functions(cfg: Config) -> dict[str, str]:
         "activate": _activate(cfg),
         "question": _question(cfg),
         "goal": _goal(cfg),
+        "goal/enter": _goal_enter(cfg),
+        "goal/fireworks": _goal_fireworks(cfg),
         **{f"level/{name}": _level(name, mx, sub) for name, (mx, sub) in LEVELS.items()},
     }
     return {name: "\n".join(lines) + "\n" for name, lines in fns.items()}
