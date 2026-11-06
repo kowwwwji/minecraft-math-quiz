@@ -90,7 +90,9 @@ class GameTest(unittest.TestCase):
         self.assertIn('summon minecraft:tnt ~ ~ ~ {fuse:40,explosion_power:0f,Tags:["mq","mq_tnt"]}', body)
         self.assertLess(body.index("spawnpoint"), body.index("summon minecraft:tnt"))
         self.assertIn("schedule function mathquiz:boom/kill 40t", body)
-        self.assertIn("damage @a 1000 minecraft:explosion", self.fns["boom/kill"])
+        # damage は Peaceful で 0 になり死ねず詰むので kill で倒す
+        self.assertIn("kill @a", self.fns["boom/kill"])
+        self.assertNotIn("damage ", self.fns["boom/kill"])
         self.assertIn("minecraft:explosion_emitter", self.fns["boom/kill"])
 
     def test_gameover_only_after_boom(self):
@@ -111,7 +113,8 @@ class GameTest(unittest.TestCase):
         self.assertIn("scoreboard players set #miss mq 0", self.fns["start"])
         self.assertIn("scoreboard players reset @a mq_deaths", self.fns["start"])
         self.assertIn("scoreboard objectives add mq_deaths deathCount", self.fns["load"])
-        self.assertEqual(self.fns["setup"].splitlines()[0], "gamerule keepInventory true")
+        # 26.x のゲームルールはレジストリ ID（snake_case・名前空間付き）。旧名だと関数ごとパースに失敗して消える
+        self.assertEqual(self.fns["setup"].splitlines()[0], "gamerule minecraft:keep_inventory true")
 
     def test_goal_dispatch_and_quit(self):
         self.assertIn("execute if score #room mq matches 6 run function mathquiz:goal", self.fns["activate"])

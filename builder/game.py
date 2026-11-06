@@ -88,8 +88,8 @@ def _load() -> list[str]:
 def _setup(cfg: Config) -> list[str]:
     # 空中へ tp する前にクリエイティブにして落下ダメージを防ぎ、チャンク読み込みを待ってから建てる
     return [
-        # 3 回目の不正解で死んでも宝箱の中身が散らばらないように
-        "gamerule keepInventory true",
+        # 3 回目の不正解で死んでも宝箱の中身が散らばらないように（26.x のゲームルールはレジストリ ID）
+        "gamerule minecraft:keep_inventory true",
         "gamemode creative @a",
         # 空中へ tp する前に、親が立っていた場所を quit の戻り先として記録する
         _remember_return_point(),
@@ -219,7 +219,8 @@ def _boom_kill() -> list[str]:
     return [
         "execute at @a run particle minecraft:explosion_emitter ~ ~1 ~",
         sound("minecraft:entity.generic.explode"),
-        "damage @a 1000 minecraft:explosion",
+        # damage は難易度 Peaceful で 0 になり死ねずに詰むので kill で倒す
+        "kill @a",
     ]
 
 
