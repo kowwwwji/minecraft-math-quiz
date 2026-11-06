@@ -28,7 +28,7 @@ class RoomsTest(unittest.TestCase):
     def test_restore_unpowers_buttons_before_lock_release(self):
         # 連打で powered のまま #lock が解除されると新しい問題が勝手に押されるので、復帰時に消灯する
         body = self.fns["room/1/restore"]
-        unpowered = "minecraft:stone_button[face=wall,facing=north,powered=false]"
+        unpowered = "minecraft:oak_button[face=wall,facing=north,powered=false]"
         self.assertEqual(body.count(unpowered), 3)
         self.assertIn(f"setblock 2 121 9 {unpowered}", body)
 
@@ -51,10 +51,16 @@ class RoomsTest(unittest.TestCase):
         self.assertEqual(cmds[0], f"fill {clear_area(self.cfg).coords()} minecraft:air")
         self.assertEqual(cmds[1], f"fill {building(self.cfg).coords()} minecraft:stone_bricks")
         joined = "\n".join(cmds)
-        self.assertEqual(joined.count("minecraft:stone_button[face=wall,facing=north]"), 15)
+        self.assertEqual(joined.count("minecraft:oak_button[face=wall,facing=north]"), 15)
+        self.assertNotIn("stone_button", joined)
+        for block in ("minecraft:red_concrete", "minecraft:yellow_concrete", "minecraft:light_blue_concrete"):
+            self.assertEqual(joined.count(block), 5)
+        self.assertIn("setblock 2 121 10 minecraft:red_concrete", joined)
         self.assertEqual(joined.count("minecraft:ladder[facing=east]"), 5)
         self.assertEqual(joined.count("minecraft:iron_bars"), 5)
-        self.assertEqual(joined.count("minecraft:sea_lantern"), 6)
+        self.assertEqual(joined.count("minecraft:sea_lantern"), 6)  # 部屋 5 つの天井 + ゴール部屋の床
+        self.assertIn("fill 41 125 1 47 125 9 minecraft:glass", joined)
+        self.assertIn("fill 41 119 1 47 119 9 minecraft:sea_lantern", joined)
         self.assertIn('minecraft:chest[facing=west]{Items:[{Slot:0b,id:"minecraft:diamond",count:5}', joined)
         self.assertIn("fill 1 113 5 7 114 9 minecraft:water", joined)
         self.assertLess(joined.index("minecraft:water"), joined.index("minecraft:ladder"))

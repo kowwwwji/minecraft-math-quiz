@@ -8,8 +8,13 @@ from builder.questions import DISPLAY_TAGS
 BLOCK_WALL = "minecraft:stone_bricks"
 BLOCK_LIGHT = "minecraft:sea_lantern"
 BLOCK_DOOR = "minecraft:iron_bars"
-BLOCK_BUTTON = "minecraft:stone_button[face=wall,facing=north]"  # +Z の壁に付き -Z を向く
-BLOCK_BUTTON_OFF = "minecraft:stone_button[face=wall,facing=north,powered=false]"
+# 木のボタン: 石レンガの壁に溶け込まない。+Z の壁に付き -Z を向く
+BLOCK_BUTTON = "minecraft:oak_button[face=wall,facing=north]"
+BLOCK_BUTTON_OFF = "minecraft:oak_button[face=wall,facing=north,powered=false]"
+BLOCK_BUTTON_ON = "minecraft:oak_button[powered=true]"  # check の if block 用
+# ボタンの裏の壁。左から赤・黄・青の的にして、ボタンの位置を一目で分かるようにする
+BLOCK_BUTTON_BACKS = ("minecraft:red_concrete", "minecraft:yellow_concrete", "minecraft:light_blue_concrete")
+BLOCK_GLASS = "minecraft:glass"
 BLOCK_LADDER = "minecraft:ladder[facing=east]"  # -X の壁に付き +X を向く
 BLOCK_AIR = "minecraft:air"
 BLOCK_WATER = "minecraft:water"
@@ -31,14 +36,17 @@ def _build_room(r: Room) -> list[str]:
         fill(r.water, BLOCK_WATER),
         fill(r.ladder, BLOCK_LADDER),
         fill(r.door, BLOCK_DOOR),
+        *(setblock(b, block) for b, block in zip(r.button_backs, BLOCK_BUTTON_BACKS)),
         *(setblock(b, BLOCK_BUTTON) for b in r.buttons),
     ]
 
 
 def _build_goal(g: GoalRoom) -> list[str]:
+    # 天井はガラス（屋根の上の花火を見せる）。明かりは床で取る
     return [
         fill(g.interior, BLOCK_AIR),
-        fill(g.ceiling, BLOCK_LIGHT),
+        fill(g.ceiling, BLOCK_GLASS),
+        fill(g.floor, BLOCK_LIGHT),
         setblock(g.chest, BLOCK_CHEST),
     ]
 
