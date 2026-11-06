@@ -6,7 +6,7 @@
 
 from builder.cmd import Raw, pos_str, set_display_text, snbt, sound, title, tp_display
 from builder.config import LEVELS, Config
-from builder.layout import FPos, goal_room, rooms
+from builder.layout import FPos, building, goal_room, rooms
 from builder.questions import DISPLAY_TAGS
 from builder.rooms import build_commands, reset_commands
 
@@ -16,6 +16,11 @@ FIREWORK_COLORS = (16711680, 65280, 255)  # 赤・緑・青
 
 def _tellraw(text: str) -> str:
     return f"tellraw @a {snbt({'text': text})}"
+
+
+def _remember_return_point() -> str:
+    """quit の戻り先を marker で記録する。既にあれば（やり直し）最初の位置を保つ。"""
+    return f"execute unless entity {MARKER} at @a run summon minecraft:marker ~ ~ ~ {snbt({'Tags': ['mq', 'mq_return']})}"
 
 
 def _tp_entry(cfg: Config) -> str:
@@ -82,6 +87,8 @@ def _setup(cfg: Config) -> list[str]:
     # 空中へ tp する前にクリエイティブにして落下ダメージを防ぎ、チャンク読み込みを待ってから建てる
     return [
         "gamemode creative @a",
+        # 空中へ tp する前に、親が立っていた場所を quit の戻り先として記録する
+        _remember_return_point(),
         _tp_entry(cfg),
         _tellraw("ダンジョンを たてています…"),
         "schedule function mathquiz:setup/build 20t",
@@ -102,12 +109,16 @@ def _start(cfg: Config) -> list[str]:
     displays += [
         _summon_display(tag, pos, cfg.choice_scale) for tag, pos in zip(DISPLAY_TAGS[1:], r1.choice_pos)
     ]
+    corner = pos_str((building(cfg).x1, building(cfg).y1, building(cfg).z1))
     return [
+        # 建物が無いまま空中へ tp すると落ちるので、setup 前なら何もしない
+        f"execute unless block {corner} minecraft:stone_bricks run {_tellraw('さきに /function mathquiz:setup を じっこうしてください')}",
+        f"execute unless block {corner} minecraft:stone_bricks run return fail",
         "scoreboard players set #active mq 0",
         # 前回の遊びで残った床復帰が新しい部屋の状態を壊さないように
         "schedule clear mathquiz:restore",
-        # quit の戻り先。既にあれば（start のやり直し）最初の位置を保つ
-        f"execute unless entity {MARKER} at @a run summon minecraft:marker ~ ~ ~ {snbt({'Tags': ['mq', 'mq_return']})}",
+        # setup を経ずに marker が無い場合の保険
+        _remember_return_point(),
         *reset_commands(cfg),
         "kill @e[type=minecraft:text_display,tag=mq]",
         *displays,

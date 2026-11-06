@@ -35,6 +35,14 @@ class GameTest(unittest.TestCase):
         self.assertIn("execute if score #c2 mq = #ans mq run function mathquiz:correct", lines)
         self.assertIn("execute unless score #c2 mq = #ans mq run function mathquiz:wrong", lines)
 
+    def test_start_refuses_without_building(self):
+        # setup 前に start すると空中へ tp されて落ちるので、建物が無ければ何もしない
+        body = self.fns["start"]
+        guard = "execute unless block 0 112 0 minecraft:stone_bricks run return fail"
+        self.assertIn(guard, body)
+        self.assertLess(body.index(guard), body.index("gamemode adventure @a"))
+        self.assertLess(body.index("execute unless block 0 112 0 minecraft:stone_bricks run tellraw @a "), body.index(guard))
+
     def test_start_clears_schedule_and_resets(self):
         body = self.fns["start"]
         self.assertLess(body.index("schedule clear mathquiz:restore"), body.index("gamemode adventure @a"))
@@ -47,6 +55,10 @@ class GameTest(unittest.TestCase):
     def test_setup_is_safe_for_the_parent(self):
         body = self.fns["setup"]
         self.assertLess(body.index("gamemode creative @a"), body.index("tp @a "))
+        # quit の戻り先は「setup を打った場所」。空中へ tp する前に記録する
+        marker = "execute unless entity @e[type=minecraft:marker,tag=mq_return] at @a run summon minecraft:marker ~ ~ ~"
+        self.assertIn(marker, body)
+        self.assertLess(body.index(marker), body.index("tp @a "))
         self.assertIn("schedule function mathquiz:setup/build 20t", body)
         self.assertTrue(self.fns["setup/build"].count("tp @a 1.5 120 1.5") == 1)
 

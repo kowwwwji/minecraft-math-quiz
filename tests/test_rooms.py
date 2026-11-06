@@ -25,6 +25,17 @@ class RoomsTest(unittest.TestCase):
         self.assertLess(max(tp), min(fill))
         self.assertIn("tp @a[x=2,y=118,z=5,dx=5,dy=2,dz=4] 4.5 114 7.5", lines[0])
 
+    def test_restore_unpowers_buttons_before_lock_release(self):
+        # 連打で powered のまま #lock が解除されると新しい問題が勝手に押されるので、復帰時に消灯する
+        body = self.fns["room/1/restore"]
+        unpowered = "minecraft:stone_button[face=wall,facing=north,powered=false]"
+        self.assertEqual(body.count(unpowered), 3)
+        self.assertIn(f"setblock 2 121 9 {unpowered}", body)
+
+    def test_reset_unpowers_all_buttons(self):
+        joined = "\n".join(reset_commands(self.cfg))
+        self.assertEqual(joined.count("powered=false"), 15)
+
     def test_drop_and_open(self):
         self.assertIn("fill 2 119 5 7 119 9 minecraft:air", self.fns["room/1/drop"])
         self.assertIn("fill 1 119 5 1 119 8 minecraft:air", self.fns["room/1/drop"])

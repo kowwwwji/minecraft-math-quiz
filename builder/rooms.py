@@ -9,6 +9,7 @@ BLOCK_WALL = "minecraft:stone_bricks"
 BLOCK_LIGHT = "minecraft:sea_lantern"
 BLOCK_DOOR = "minecraft:iron_bars"
 BLOCK_BUTTON = "minecraft:stone_button[face=wall,facing=north]"  # +Z の壁に付き -Z を向く
+BLOCK_BUTTON_OFF = "minecraft:stone_button[face=wall,facing=north,powered=false]"
 BLOCK_LADDER = "minecraft:ladder[facing=east]"  # -X の壁に付き +X を向く
 BLOCK_AIR = "minecraft:air"
 BLOCK_WATER = "minecraft:water"
@@ -51,12 +52,18 @@ def build_commands(cfg: Config) -> list[str]:
     return cmds
 
 
+def _unpower_buttons(r: Room) -> list[str]:
+    # 連打で powered のまま #lock が解除されると、次の問題が勝手に「押された」ことになるため消灯する
+    return [setblock(b, BLOCK_BUTTON_OFF) for b in r.buttons]
+
+
 def reset_commands(cfg: Config) -> list[str]:
-    """start 用。前回の遊びで開いた扉と抜けた床を元に戻す。"""
+    """start 用。前回の遊びで開いた扉と抜けた床を元に戻し、ボタンを消灯する。"""
     cmds = []
     for r in rooms(cfg):
         cmds.append(fill(r.door, BLOCK_DOOR))
         cmds += [fill(b, BLOCK_WALL) for b in r.pit_floor]
+        cmds += _unpower_buttons(r)
     return cmds
 
 
@@ -67,6 +74,7 @@ def _restore(r: Room) -> list[str]:
         area = Box(b.x1, b.y1 - 1, b.z1, b.x2, b.y2 + 1, b.z2)
         lines.append(f"tp @a[{area.selector()}] {pos_str(r.pit_bottom)}")
     lines += [fill(b, BLOCK_WALL) for b in r.pit_floor]
+    lines += _unpower_buttons(r)
     return lines
 
 
