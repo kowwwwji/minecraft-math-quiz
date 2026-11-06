@@ -4,13 +4,14 @@
 `press/*` の先頭で立てて次の問題が出る `question` の最後で下ろす。
 """
 
-from builder.cmd import Raw, pos_str, set_display_text, snbt, sound, title, tp_display
+from builder.cmd import Raw, pos_str, score_text, set_display_text, snbt, sound, title, tp_display
 from builder.config import LEVELS, Config
 from builder.layout import FPos, building, goal_room, rooms
 from builder.questions import DISPLAY_TAGS
-from builder.rooms import build_commands, reset_commands
+from builder.rooms import BLOCK_BUTTON_ON, build_commands, reset_commands
 
 MARKER = "@e[type=minecraft:marker,tag=mq_return]"
+TNT = "@e[type=minecraft:tnt,tag=mq]"
 FIREWORK_COLORS = (16711680, 65280, 255)  # 赤・緑・青
 
 
@@ -76,6 +77,7 @@ def _firework(pos: FPos, color: int) -> str:
 def _load() -> list[str]:
     return [
         "scoreboard objectives add mq dummy",
+        "scoreboard objectives add mq_deaths deathCount",  # 爆発後のリスポーン検出用
         # 未設定（自分自身との比較が失敗する）のときだけ既定レベルにする
         "execute unless score #max mq = #max mq run function mathquiz:level/normal",
         "scoreboard players set #active mq 0",
@@ -86,6 +88,8 @@ def _load() -> list[str]:
 def _setup(cfg: Config) -> list[str]:
     # 空中へ tp する前にクリエイティブにして落下ダメージを防ぎ、チャンク読み込みを待ってから建てる
     return [
+        # 3 回目の不正解で死んでも宝箱の中身が散らばらないように
+        "gamerule keepInventory true",
         "gamemode creative @a",
         # 空中へ tp する前に、親が立っていた場所を quit の戻り先として記録する
         _remember_return_point(),
@@ -115,8 +119,9 @@ def _start(cfg: Config) -> list[str]:
         f"execute unless block {corner} minecraft:stone_bricks run {_tellraw('さきに /function mathquiz:setup を じっこうしてください')}",
         f"execute unless block {corner} minecraft:stone_bricks run return fail",
         "scoreboard players set #active mq 0",
-        # 前回の遊びで残った床復帰が新しい部屋の状態を壊さないように
-        "schedule clear mathquiz:restore",
+        *_cancel_timers(),
+        "scoreboard players set #miss mq 0",
+        "scoreboard players reset @a mq_deaths",
         # setup を経ずに marker が無い場合の保険
         _remember_return_point(),
         *reset_commands(cfg),
@@ -133,7 +138,7 @@ def _start(cfg: Config) -> list[str]:
 def _quit() -> list[str]:
     return [
         "scoreboard players set #active mq 0",
-        "schedule clear mathquiz:restore",
+        *_cancel_timers(),
         "gamemode creative @a",
         f"tp @a {MARKER[:-1]},limit=1]",
         f"kill {MARKER}",
@@ -146,7 +151,7 @@ def _check(cfg: Config) -> list[str]:
         for k, b in enumerate(r.buttons, start=1):
             lines.append(
                 f"execute if score #lock mq matches 0 if score #room mq matches {r.number} "
-                f"if block {pos_str(b)} minecraft:stone_button[powered=true] run function mathquiz:press/{k}"
+                f"if block {pos_str(b)} {BLOCK_BUTTON_ON} run function mathquiz:press/{k}"
             )
     return lines
 
@@ -174,11 +179,67 @@ def _correct(cfg: Config) -> list[str]:
 
 
 def _wrong(cfg: Config) -> list[str]:
+    # 残り回数 #left を先に確定してから分岐する（boom / wrong/drop は #left を変えない）
     return [
+        "scoreboard players add #miss mq 1",
+        f"scoreboard players set #left mq {cfg.lives}",
+        "scoreboard players operation #left mq -= #miss mq",
+        "execute if score #left mq matches ..0 run function mathquiz:boom",
+        "execute if score #left mq matches 1.. run function mathquiz:wrong/drop",
+    ]
+
+
+def _wrong_drop(cfg: Config) -> list[str]:
+    return [
+        title("subtitle", [{"text": "あと "}, score_text("#left"), {"text": " かい"}]),
         title("title", {"text": "ざんねん…", "color": "red"}),
         sound("minecraft:entity.villager.no", 0.8),
         *_dispatch(cfg, "drop"),
         f"schedule function mathquiz:restore {cfg.restore_ticks}t",
+    ]
+
+
+def _boom(cfg: Config) -> list[str]:
+    # #active 2 = 爆発待ち〜リスポーン待ち。ボタンは見ず、リスポーンだけ tick で拾う
+    tnt = snbt({"fuse": cfg.tnt_fuse_ticks, "explosion_power": 0.0, "Tags": ["mq", "mq_tnt"]})
+    return [
+        "scoreboard players set #active mq 2",
+        title("title", {"text": "ばくはつ！", "color": "red"}),
+        sound("minecraft:entity.tnt.primed"),
+        # リスポーン先は setup を打った場所（quit の戻り先と同じ marker）
+        f"execute at {MARKER[:-1]},limit=1] run spawnpoint @a ~ ~ ~",
+        "scoreboard players set @a mq_deaths 0",
+        # 威力 0 の TNT: 点滅と音は本物、部屋は壊れない。ダメージは boom/kill で与える
+        f"execute at @a run summon minecraft:tnt ~ ~ ~ {tnt}",
+        f"schedule function mathquiz:boom/kill {cfg.tnt_fuse_ticks}t",
+    ]
+
+
+def _boom_kill() -> list[str]:
+    return [
+        "execute at @a run particle minecraft:explosion_emitter ~ ~1 ~",
+        sound("minecraft:entity.generic.explode"),
+        "damage @a 1000 minecraft:explosion",
+    ]
+
+
+def _gameover() -> list[str]:
+    # tick から「リスポーン後の生きているプレイヤー」として as で呼ばれる
+    return [
+        "scoreboard players set #active mq 0",
+        "scoreboard players reset @s mq_deaths",
+        "gamemode creative @s",
+        f"tp @s {MARKER[:-1]},limit=1]",
+        f"tellraw @s {snbt({'text': 'もういちど あそぶなら /function mathquiz:start'})}",
+    ]
+
+
+def _cancel_timers() -> list[str]:
+    """前回の遊びで予約した処理が、新しい状態を壊さないように取り消す。"""
+    return [
+        "schedule clear mathquiz:restore",
+        "schedule clear mathquiz:boom/kill",
+        f"kill {TNT}",
     ]
 
 
@@ -232,11 +293,20 @@ def game_functions(cfg: Config) -> dict[str, str]:
         "setup/build": _setup_build(cfg),
         "start": _start(cfg),
         "quit": _quit(),
-        "tick": ["execute if score #active mq matches 1 if score #lock mq matches 0 run function mathquiz:check"],
+        "tick": [
+            "execute if score #active mq matches 1 if score #lock mq matches 0 run function mathquiz:check",
+            # 爆発で死んだ子がリスポーンしたら（@e は生きているプレイヤーだけ拾う）遊びを終える
+            "execute if score #active mq matches 2 as @e[type=minecraft:player,scores={mq_deaths=1..}] "
+            "run function mathquiz:gameover",
+        ],
         "check": _check(cfg),
         **{f"press/{k}": _press(k) for k in (1, 2, 3)},
         "correct": _correct(cfg),
         "wrong": _wrong(cfg),
+        "wrong/drop": _wrong_drop(cfg),
+        "boom": _boom(cfg),
+        "boom/kill": _boom_kill(),
+        "gameover": _gameover(),
         "restore": _restore(cfg),
         "activate": _activate(cfg),
         "question": _question(cfg),

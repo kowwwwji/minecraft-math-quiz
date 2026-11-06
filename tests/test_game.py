@@ -13,6 +13,7 @@ class GameTest(unittest.TestCase):
             "load", "setup", "setup/build", "start", "quit", "tick", "check",
             "press/1", "press/2", "press/3", "correct", "wrong", "restore", "activate",
             "question", "goal", "level/easy", "level/normal", "level/hard",
+            "wrong/drop", "boom", "boom/kill", "gameover",
         ):
             self.assertIn(k, self.fns)
 
@@ -26,7 +27,7 @@ class GameTest(unittest.TestCase):
         self.assertEqual(len(lines), 15)
         for l in lines:
             self.assertTrue(l.startswith("execute if score #lock mq matches 0 if score #room mq matches "))
-            self.assertIn("minecraft:stone_button[powered=true] run function mathquiz:press/", l)
+            self.assertIn("minecraft:oak_button[powered=true] run function mathquiz:press/", l)
         self.assertIn("if block 2 121 9 ", lines[0])
 
     def test_press_sets_lock_then_branches(self):
@@ -64,9 +65,53 @@ class GameTest(unittest.TestCase):
         self.assertTrue(self.fns["setup/build"].count("tp @a 1.5 120 1.5") == 1)
 
     def test_wrong_schedules_restore(self):
-        self.assertIn("schedule function mathquiz:restore 60t", self.fns["wrong"])
-        self.assertIn("execute if score #room mq matches 3 run function mathquiz:room/3/drop", self.fns["wrong"])
-        self.assertIn("entity.villager.no", self.fns["wrong"])
+        self.assertIn("schedule function mathquiz:restore 60t", self.fns["wrong/drop"])
+        self.assertIn("execute if score #room mq matches 3 run function mathquiz:room/3/drop", self.fns["wrong/drop"])
+        self.assertIn("entity.villager.no", self.fns["wrong/drop"])
+
+    def test_wrong_counts_misses_and_branches_on_lives_left(self):
+        lines = self.fns["wrong"].splitlines()
+        self.assertEqual(lines[0], "scoreboard players add #miss mq 1")
+        self.assertIn("scoreboard players set #left mq 3", lines)
+        self.assertIn("scoreboard players operation #left mq -= #miss mq", lines)
+        self.assertIn("execute if score #left mq matches ..0 run function mathquiz:boom", lines)
+        self.assertIn("execute if score #left mq matches 1.. run function mathquiz:wrong/drop", lines)
+        self.assertNotIn("#left", self.fns["boom"])  # 分岐のあとに条件の値を変えない
+
+    def test_wrong_drop_shows_lives_left(self):
+        body = self.fns["wrong/drop"]
+        self.assertIn('title @a subtitle [{text:"あと "},{score:{name:"#left",objective:"mq"}},{text:" かい"}]', body)
+        self.assertLess(body.index("title @a subtitle"), body.index("title @a title"))
+
+    def test_boom_is_harmless_to_the_room_and_sets_respawn_first(self):
+        body = self.fns["boom"]
+        self.assertEqual(body.splitlines()[0], "scoreboard players set #active mq 2")
+        self.assertIn("run spawnpoint @a ~ ~ ~", body)
+        self.assertIn('summon minecraft:tnt ~ ~ ~ {fuse:40,explosion_power:0f,Tags:["mq","mq_tnt"]}', body)
+        self.assertLess(body.index("spawnpoint"), body.index("summon minecraft:tnt"))
+        self.assertIn("schedule function mathquiz:boom/kill 40t", body)
+        self.assertIn("damage @a 1000 minecraft:explosion", self.fns["boom/kill"])
+        self.assertIn("minecraft:explosion_emitter", self.fns["boom/kill"])
+
+    def test_gameover_only_after_boom(self):
+        self.assertIn(
+            "execute if score #active mq matches 2 as @e[type=minecraft:player,scores={mq_deaths=1..}] run function mathquiz:gameover",
+            self.fns["tick"],
+        )
+        body = self.fns["gameover"]
+        self.assertIn("gamemode creative @s", body)
+        self.assertIn("tp @s @e[type=minecraft:marker,tag=mq_return,limit=1]", body)
+        self.assertIn("scoreboard players set #active mq 0", body)
+
+    def test_start_and_quit_cancel_tnt(self):
+        for name in ("start", "quit"):
+            body = self.fns[name]
+            self.assertIn("schedule clear mathquiz:boom/kill", body, name)
+            self.assertIn("kill @e[type=minecraft:tnt,tag=mq]", body, name)
+        self.assertIn("scoreboard players set #miss mq 0", self.fns["start"])
+        self.assertIn("scoreboard players reset @a mq_deaths", self.fns["start"])
+        self.assertIn("scoreboard objectives add mq_deaths deathCount", self.fns["load"])
+        self.assertEqual(self.fns["setup"].splitlines()[0], "gamerule keepInventory true")
 
     def test_goal_dispatch_and_quit(self):
         self.assertIn("execute if score #room mq matches 6 run function mathquiz:goal", self.fns["activate"])
