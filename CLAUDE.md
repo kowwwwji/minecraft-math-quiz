@@ -12,6 +12,9 @@ Python スクリプトでデータパックを生成し、ワールドへコピ�
 
 - Minecraft Java 版 **26.3**、データパック形式 **121**。執筆時点の AI の知識より新しいので、
   コマンド構文は minecraft.wiki とゲーム内テストで確認する（特に `text_display`・`random`・`schedule`）。
+- 手元の `~/Library/Application Support/minecraft/versions/26.3/26.3.jar` でも確認できる:
+  `version.json`（pack 形式）、`assets/minecraft/blockstates/*.json`（ブロック状態）、
+  `assets/minecraft/lang/en_us.json`（エンティティ・音・コマンドの ID の有無）。
 - 対象ワールド: `~/Library/Application Support/minecraft/saves/さんすう/`（シングル・コマンド許可済み）。
   datapacks の配置先は `saves/さんすう/datapacks/mathquiz/`。
 - Python 3.11（mise）。外部ライブラリを入れない。テストは `python3 -m unittest`。
