@@ -32,8 +32,9 @@ class GameTest(unittest.TestCase):
     def test_press_sets_lock_then_branches(self):
         lines = self.fns["press/2"].splitlines()
         self.assertEqual(lines[0], "scoreboard players set #lock mq 1")
-        self.assertIn("execute if score #c2 mq = #ans mq run function mathquiz:correct", lines)
-        self.assertIn("execute unless score #c2 mq = #ans mq run function mathquiz:wrong", lines)
+        self.assertIn("execute if score #c2 mq = #ans mq run scoreboard players set #hit mq 1", lines)
+        self.assertIn("execute if score #hit mq matches 1 run function mathquiz:correct", lines)
+        self.assertIn("execute if score #hit mq matches 0 run function mathquiz:wrong", lines)
 
     def test_start_refuses_without_building(self):
         # setup 前に start すると空中へ tp されて落ちるので、建物が無ければ何もしない
@@ -80,3 +81,39 @@ class GameTest(unittest.TestCase):
             for l in body.splitlines():
                 if "~" in l:
                     self.assertIn(" at @", l, msg=f"{name}: {l}")
+
+
+class PressFlowTest(unittest.TestCase):
+    """press/k の分岐を、正解処理が問題を作り直す状況でシミュレータ実行する。"""
+
+    def run_press(self, k, hit, seed=7):
+        import random
+
+        from builder.questions import question_functions
+        from tests.mcsim import Sim
+
+        fns = dict(question_functions(Config()))
+        fns[f"press/{k}"] = self.fns[f"press/{k}"]
+        # correct は次の問題を生成して #ans / #c1..3 を書き換える。wrong は呼ばれた印だけ残す
+        fns["correct"] = "scoreboard players set #correct_called mq 1\nfunction mathquiz:gen\n"
+        fns["wrong"] = "scoreboard players set #wrong_called mq 1\n"
+        sim = Sim(fns, random.Random(seed))
+        sim.scores.update({"#max": 10, "#sub": 1, "#ans": 5, "#c1": 5, "#c2": 6, "#c3": 4})
+        if not hit:
+            sim.scores["#ans"] = 3
+        sim.run(f"press/{k}")
+        return sim.scores
+
+    def setUp(self):
+        self.fns = game_functions(Config())
+
+    def test_correct_press_never_also_runs_wrong(self):
+        for seed in range(30):  # gen の乱数に関わらず wrong が走らないこと
+            s = self.run_press(1, hit=True, seed=seed)
+            self.assertEqual(s.get("#correct_called"), 1)
+            self.assertNotIn("#wrong_called", s)
+
+    def test_wrong_press_runs_only_wrong(self):
+        s = self.run_press(1, hit=False)
+        self.assertEqual(s.get("#wrong_called"), 1)
+        self.assertNotIn("#correct_called", s)

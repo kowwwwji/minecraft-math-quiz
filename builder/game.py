@@ -152,10 +152,14 @@ def _check(cfg: Config) -> list[str]:
 
 
 def _press(k: int) -> list[str]:
+    # correct は次の問題を作って #ans / #c1..3 を書き換えるので、if/unless を直接並べると
+    # 正解のあと unless 側も新しい問題で評価されて wrong が走る。比較結果を #hit に固定してから分岐する
     return [
         "scoreboard players set #lock mq 1",
-        f"execute if score #c{k} mq = #ans mq run function mathquiz:correct",
-        f"execute unless score #c{k} mq = #ans mq run function mathquiz:wrong",
+        "scoreboard players set #hit mq 0",
+        f"execute if score #c{k} mq = #ans mq run scoreboard players set #hit mq 1",
+        "execute if score #hit mq matches 1 run function mathquiz:correct",
+        "execute if score #hit mq matches 0 run function mathquiz:wrong",
     ]
 
 
