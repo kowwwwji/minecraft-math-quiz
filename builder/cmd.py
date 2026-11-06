@@ -3,6 +3,8 @@
 座標は Python 側で確定した絶対座標だけを受け取る。
 """
 
+import re
+
 from builder.layout import Box, FPos, Pos
 
 OBJECTIVE = "mq"
@@ -25,10 +27,15 @@ def snbt(value) -> str:
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if isinstance(value, dict):
-        return "{" + ",".join(f"{k}:{snbt(v)}" for k, v in value.items()) + "}"
+        return "{" + ",".join(f"{_key(k)}:{snbt(v)}" for k, v in value.items()) + "}"
     if isinstance(value, (list, tuple)):
         return "[" + ",".join(snbt(v) for v in value) + "]"
     raise TypeError(f"SNBT にできない値: {value!r}")
+
+
+def _key(k: str) -> str:
+    # 英数字と _ . + - 以外（"minecraft:fireworks" のコロン等）を含むキーは引用が必要
+    return k if re.fullmatch(r"[A-Za-z0-9_.+-]+", k) else snbt(k)
 
 
 def pos_str(pos: Pos | FPos) -> str:
