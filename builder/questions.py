@@ -149,7 +149,8 @@ def _sign(target: str, limit_var: str) -> list[str]:
 
 def _gen_mul_wrong() -> list[str]:
     # 正解 ±1〜3 は九九の表にない数ですぐ見抜かれるので、表の隣 (a ± 1) × b と a × (b ± 1) を誤答にする。
-    # a = b で同じ向きだと 2 つが一致するので、一致したら後者を a × (b ± 2) にする（2 × 2 で 0 になるのは許容）
+    # a = b で同じ向きだと 2 つが一致するので、一致したら後者を a × (b ± 2) にする。
+    # b ± 2 が 1〜9 を外れる（2 × 0、8 × 10）と表にない数になるので、そのときは向きを逆にする
     return [
         *_sign("#d", "#a"),
         "scoreboard players operation #w1 mq = #a mq",
@@ -165,7 +166,12 @@ def _gen_mul_wrong() -> list[str]:
         "execute if score #s mq matches 1 run scoreboard players operation #w2 mq = #b mq",
         "execute if score #s mq matches 1 run scoreboard players operation #w2 mq += #e mq",
         "execute if score #s mq matches 1 run scoreboard players operation #w2 mq += #e mq",
-        "execute if score #s mq matches 1 run scoreboard players operation #w2 mq *= #a mq",
+        # 範囲外の判定も #s（= 2）に固定してから分岐する（分岐先の 1 行目で #w2 が範囲内に戻るため）
+        "execute if score #s mq matches 1 unless score #w2 mq matches 1..9 run scoreboard players set #s mq 2",
+        "execute if score #s mq matches 2 run scoreboard players operation #w2 mq = #b mq",
+        "execute if score #s mq matches 2 run scoreboard players operation #w2 mq -= #e mq",
+        "execute if score #s mq matches 2 run scoreboard players operation #w2 mq -= #e mq",
+        "execute if score #s mq matches 1.. run scoreboard players operation #w2 mq *= #a mq",
     ]
 
 

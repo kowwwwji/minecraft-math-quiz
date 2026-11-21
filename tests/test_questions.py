@@ -112,7 +112,9 @@ class QuestionTest(unittest.TestCase):
                 continue
             a, b = s["#a"], s["#b"]
             wrong = {s["#c1"], s["#c2"], s["#c3"]} - {s["#ans"]}
-            allowed = {(a + 1) * b, (a - 1) * b, a * (b + 1), a * (b - 1), a * (b + 2), a * (b - 2)}
+            # 掛ける数が 1〜9 を外れる向き（2 × 0、8 × 10）は九九の表にないので許さない
+            allowed = {(a + d) * b for d in (-1, 1) if 1 <= a + d <= 9}
+            allowed |= {a * (b + e) for e in (-2, -1, 1, 2) if 1 <= b + e <= 9}
             self.assertEqual(len(wrong), 2, s)
             self.assertTrue(wrong <= allowed, s)
 
@@ -129,6 +131,20 @@ class QuestionTest(unittest.TestCase):
                 self.assertTrue(all(v <= LEVELS[level].max for v in c), s)
                 positions.add(c.index(s["#ans"]))
             self.assertEqual(positions, {0, 1, 2}, level)
+
+    def test_gen_leaves_game_state_alone(self):
+        # #room は「現在の部屋番号」。出題が上書きすると正解後の部屋判定やボタン検出が壊れる
+        sim = Sim(self.fns, random.Random(3))
+        for level in LEVELS:
+            lv = LEVELS[level]
+            for _ in range(200):
+                sim.scores.update({"#max": lv.max, "#lo": lv.lo, "#terms": lv.terms, "#sub": lv.sub, "#mul": lv.mul,
+                                   "#room": 3, "#lock": 1, "#miss": 2, "#active": 1})
+                sim.run("gen")
+                self.assertEqual((sim.scores["#room"], sim.scores["#lock"], sim.scores["#miss"], sim.scores["#active"]),
+                                 (3, 1, 2, 1), level)
+                for k in ("#max", "#lo", "#terms", "#sub", "#mul"):
+                    self.assertEqual(sim.scores[k], getattr(lv, k[1:]), level)
 
     def test_random_ranges_are_wide(self):
         for body in self.fns.values():

@@ -20,9 +20,10 @@ class Config:
     pit_depth: int = 6  # 床下の縦穴の深さ
     water_depth: int = 2  # 底の水。落下ダメージを消すため
     restore_ticks: int = 60  # 不正解から床復帰までの時間（3 秒）
-    # 問題の text_display の拡大率。最長の式（23 + 45 - 18 = ?、88 px）が 0.025 × 3 = 6.6 ブロックで
-    # ボタン壁の幅 7 ブロックに収まる値（4 だとはみ出て壁に埋まる）
-    question_scale: float = 3.0
+    # 問題の text_display の拡大率。最長の式（23 + 45 - 18 = ?）は数字・記号 6 px、空白 4 px、
+    # 太字で 1 文字 +1 px なので 100 px。1 px = 0.025 ブロックなので 2.5 倍で 6.25 ブロックとなり、
+    # ボタン壁の幅 7 ブロックに収まる（3 だと 7.5 ブロックで両端が壁に埋まる）
+    question_scale: float = 2.5
     choice_scale: float = 3.0
     lives: int = 3  # 不正解できる回数（ダンジョン全体の通算）
     tnt_fuse_ticks: int = 40  # 3 回目の不正解で出る TNT の導火線（2 秒）
