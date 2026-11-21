@@ -64,8 +64,9 @@ class GameTest(unittest.TestCase):
         body = self.fns["start"]
         self.assertLess(body.index("schedule clear mathquiz:restore"), body.index("gamemode adventure @a"))
         self.assertEqual(body.count("summon minecraft:text_display"), 4)
-        self.assertIn("scale:[4f,4f,4f]", body)
-        self.assertIn("scale:[3f,3f,3f]", body)
+        # 最長の式（23 + 45 - 18 = ?）がボタン壁の幅 7 ブロックに収まる拡大率
+        self.assertEqual(body.count("scale:[3f,3f,3f]"), 4)
+        self.assertNotIn("scale:[4f,4f,4f]", body)
         self.assertIn("tp @a 1.5 120 1.5 -90 0", body)
         self.assertTrue(body.rstrip().endswith("function mathquiz:activate"))
 
