@@ -23,7 +23,7 @@
 ## Review Focus
 
 - 古い版で遊んだワールドには `#max` だけが残っている。`load` の既定値判定を `#max` のままにすると `#terms` 等が入らず `gen/expr` が `%= 0` 等で壊れる → 判定は `#terms` で行う。Task 1 のテストで固定。
-- 引き算なし（`g1_easy`）で `a` が上限近くになると、後ろの項が下限以上で取れない → 取り置き `#room` を `a` と 2 項目に効かせる。Task 2 のテスト（3000 回の試行で全項が下限以上）で固定。
+- 引き算なし（`g1_easy`）で `a` が上限近くになると、後ろの項が下限以上で取れない → 取り置き `#hold` を `a` と 2 項目に効かせる。Task 2 のテスト（3000 回の試行で全項が下限以上）で固定。
 - 2 桁の引き算で途中の値が 10 未満になった直後（`15 - 12`）は `-` が選べないので `+` に倒す。その `+` も上限を超えてはいけない → `#plus` / `#minus` のフラグで両方を見る。Task 2 のテスト（途中計算が 0〜上限）で固定。
 - 答えが上限付近（`97 + 2`）のとき、旧 `gen/wrong` の「正解 ±1〜3」は 100〜102 の 3 桁を選択肢に出す → 誤答は `[max(ans−3, 0), min(ans+3, 上限)]` の候補から正解を除いて選ぶ。Task 2 のテスト（選択肢が 0〜上限）で固定。
 - 九九で `a = b` かつ同じ向きにずらすと誤答 2 つが一致する（`3 × 3` → `4 × 3` と `3 × 4`）→ 一致したら `a × (b ± 2)`。Task 2 のテストで固定。
@@ -135,8 +135,8 @@ git commit -m "update(builder) 難易度を学年×3段階の 6 つにし、5 �
   ```
   gen            : #r（0 = 式, 1 = 九九。#mul が 0 なら常に 0）を決めて gen/expr か gen/mul、gen/wrong か gen/mul_wrong を呼び、最後に gen/shuffle
   gen/expr       : #a #op1 #b（#terms が 3 なら #op2 #c も）#ans。#op は 0 = +, 1 = -
-  gen/term       : #acc と #room を見て 1 項ぶん #n（数）と #o（演算）を決め、#acc を更新する
-  gen/term/add   : #n = #lo + 乱数 % (#max - #acc - #room - #lo + 1)、#acc += #n
+  gen/term       : #acc と #hold を見て 1 項ぶん #n（数）と #o（演算）を決め、#acc を更新する
+  gen/term/add   : #n = #lo + 乱数 % (#max - #acc - #hold - #lo + 1)、#acc += #n
   gen/term/sub   : #n = #lo + 乱数 % (#acc - #lo + 1)、#acc -= #n
   gen/mul        : #a #b（1〜9）#ans = #a × #b、#op1 = 2
   gen/wrong      : #w1 #w2 を [max(#ans−3, 0), min(#ans+3, #max)] の候補（#ans を除く）から重複なく選ぶ
@@ -144,7 +144,7 @@ git commit -m "update(builder) 難易度を学年×3段階の 6 つにし、5 �
   gen/shuffle    : 既存のまま
   show           : #op1 が 2 なら「a × b = ?」、#terms が 2 なら「a ± b = ?」、3 なら「a ± b ± c = ?」
   ```
-  一時スコアは `#t` `#r` `#s` `#d` `#e` `#p` `#n` `#o` `#acc` `#room` `#plus` `#minus` `#lo2` `#hi2` `#m1` `#m2`。`#terms` は難易度の値なので出題中に書き換えない。
+  一時スコアは（`#room` はゲーム側の「現在の部屋番号」なので取り置きには使わない）`#t` `#r` `#s` `#d` `#e` `#p` `#n` `#o` `#acc` `#hold` `#plus` `#minus` `#lo2` `#hi2` `#m1` `#m2`。`#terms` は難易度の値なので出題中に書き換えない。
 
 - [ ] **Step 1: テストを書く**
 
@@ -312,11 +312,11 @@ Expected: `#lo` 等を見ない旧 `gen` が `#terms` / `#op2` を書かない�
 `gen/expr` の手順（スコア演算だけで書く。乱数は `_rand_mod(target, "#t")` で `#t` を法にする）:
 
 ```
-#room = #lo × (#terms − 1)。#sub が 1 なら 0          （引き算なしのときだけ後ろの項ぶんを取り置く）
-#t = #max − #room − #lo + 1 ; #a = 乱数 % #t + #lo ; #acc = #a
-#room = #lo。#terms が 2 または #sub が 1 なら 0       （3 項・引き算なしのときだけ 3 項目ぶんを取り置く）
+#hold = #lo × (#terms − 1)。#sub が 1 なら 0          （引き算なしのときだけ後ろの項ぶんを取り置く）
+#t = #max − #hold − #lo + 1 ; #a = 乱数 % #t + #lo ; #acc = #a
+#hold = #lo。#terms が 2 または #sub が 1 なら 0       （3 項・引き算なしのときだけ 3 項目ぶんを取り置く）
 function gen/term ; #b = #n ; #op1 = #o
-#room = 0
+#hold = 0
 #terms が 3 なら function gen/term ; #c = #n ; #op2 = #o   （3 行とも execute if score #terms mq matches 3 で門番）
 #ans = #acc
 ```
@@ -324,7 +324,7 @@ function gen/term ; #b = #n ; #op1 = #o
 `gen/term` の手順:
 
 ```
-#t = #max − #acc − #room ; #plus = (#t >= #lo) ? 1 : 0        （execute if score #t mq >= #lo mq run set #plus 1）
+#t = #max − #acc − #hold ; #plus = (#t >= #lo) ? 1 : 0        （execute if score #t mq >= #lo mq run set #plus 1）
 #minus = (#sub == 1 かつ #acc >= #lo) ? 1 : 0
 #o = 乱数 % 2 ; #plus が 0 なら #o = 1 ; #minus が 0 なら #o = 0
 #o が 0 なら function gen/term/add、1 なら function gen/term/sub
