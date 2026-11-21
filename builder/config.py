@@ -28,9 +28,25 @@ class Config:
     firework_interval_ticks: int = 15
 
 
-# レベル名 → (答えの上限 #max, 引き算あり #sub)
-LEVELS: dict[str, tuple[int, int]] = {
-    "easy": (5, 0),
-    "normal": (10, 1),
-    "hard": (20, 1),
+@dataclass(frozen=True)
+class Level:
+    """難易度。問題の種類ごとに関数を分けず、この 5 つの値で同じ生成手順を振り分ける。"""
+
+    max: int  # 答えと途中の計算の上限（#max）
+    lo: int  # 式に出る数の下限（#lo）。2 桁なら 10
+    terms: int  # 足し算・引き算の式の項数 2 か 3（#terms）
+    sub: int  # 引き算を混ぜるか 0/1（#sub）
+    mul: int  # 九九を 1/2 で混ぜるか 0/1（#mul）
+    label: str  # tellraw 用の説明（ひらがな）
+
+
+# 名前は「学年_段階」。値は設計書の難易度表どおり
+LEVELS: dict[str, Level] = {
+    "g1_easy": Level(10, 1, 3, 0, 0, "3つの かずの たしざん"),
+    "g1_normal": Level(10, 1, 3, 1, 0, "3つの かずの たしざん・ひきざん"),
+    "g1_hard": Level(20, 1, 3, 1, 0, "3つの かずの たしざん・ひきざん"),
+    "g2_easy": Level(99, 10, 2, 1, 0, "2けたの たしざん・ひきざん"),
+    "g2_normal": Level(99, 10, 2, 1, 1, "2けたの たしざん・ひきざん と くく"),
+    "g2_hard": Level(99, 10, 3, 1, 1, "2けた 3つの かずの たしざん・ひきざん と くく"),
 }
+DEFAULT_LEVEL = "g1_normal"

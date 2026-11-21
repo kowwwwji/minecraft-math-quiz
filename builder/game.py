@@ -5,7 +5,7 @@
 """
 
 from builder.cmd import Raw, pos_str, score_text, set_display_text, snbt, sound, title, tp_display
-from builder.config import LEVELS, Config
+from builder.config import DEFAULT_LEVEL, LEVELS, Config, Level
 from builder.layout import FPos, building, goal_room, rooms
 from builder.questions import DISPLAY_TAGS
 from builder.rooms import BLOCK_BUTTON_ON, build_commands, reset_commands
@@ -78,8 +78,9 @@ def _load() -> list[str]:
     return [
         "scoreboard objectives add mq dummy",
         "scoreboard objectives add mq_deaths deathCount",  # 爆発後のリスポーン検出用
-        # 未設定（自分自身との比較が失敗する）のときだけ既定レベルにする
-        "execute unless score #max mq = #max mq run function mathquiz:level/normal",
+        # 未設定（自分自身との比較が失敗する）のときだけ既定レベルにする。
+        # 古い版で遊んだワールドには #max だけが残っているので、この改訂で増えた #terms で判定する
+        f"execute unless score #terms mq = #terms mq run function mathquiz:level/{DEFAULT_LEVEL}",
         "scoreboard players set #active mq 0",
         "scoreboard players set #lock mq 0",
     ]
@@ -297,11 +298,14 @@ def _goal_fireworks(cfg: Config) -> list[str]:
     ]
 
 
-def _level(name: str, mx: int, sub: int) -> list[str]:
+def _level(name: str, lv: Level) -> list[str]:
     return [
-        f"scoreboard players set #max mq {mx}",
-        f"scoreboard players set #sub mq {sub}",
-        _tellraw(f"レベル: {name}（こたえは 0〜{mx}）"),
+        f"scoreboard players set #max mq {lv.max}",
+        f"scoreboard players set #lo mq {lv.lo}",
+        f"scoreboard players set #terms mq {lv.terms}",
+        f"scoreboard players set #sub mq {lv.sub}",
+        f"scoreboard players set #mul mq {lv.mul}",
+        _tellraw(f"レベル: {name}（{lv.label}、こたえは 0〜{lv.max}）"),
     ]
 
 
@@ -335,6 +339,6 @@ def game_functions(cfg: Config) -> dict[str, str]:
         "goal": _goal(cfg),
         "goal/enter": _goal_enter(cfg),
         "goal/fireworks": _goal_fireworks(cfg),
-        **{f"level/{name}": _level(name, mx, sub) for name, (mx, sub) in LEVELS.items()},
+        **{f"level/{name}": _level(name, lv) for name, lv in LEVELS.items()},
     }
     return {name: "\n".join(lines) + "\n" for name, lines in fns.items()}

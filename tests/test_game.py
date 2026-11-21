@@ -12,15 +12,30 @@ class GameTest(unittest.TestCase):
         for k in (
             "load", "setup", "setup/build", "start", "quit", "tick", "check",
             "press/1", "press/2", "press/3", "correct", "wrong", "restore", "activate",
-            "question", "goal", "level/easy", "level/normal", "level/hard",
+            "question", "goal", "level/g1_easy", "level/g1_normal", "level/g1_hard",
+            "level/g2_easy", "level/g2_normal", "level/g2_hard",
             "wrong/drop", "boom", "boom/kill", "gameover", "goal/enter", "goal/fireworks",
         ):
             self.assertIn(k, self.fns)
 
     def test_levels(self):
-        self.assertIn("scoreboard players set #max mq 5\nscoreboard players set #sub mq 0", self.fns["level/easy"])
-        self.assertIn("scoreboard players set #max mq 20\nscoreboard players set #sub mq 1", self.fns["level/hard"])
-        self.assertIn("unless score #max mq = #max mq run function mathquiz:level/normal", self.fns["load"])
+        self.assertEqual(
+            self.fns["level/g1_easy"].splitlines()[:5],
+            [
+                "scoreboard players set #max mq 10",
+                "scoreboard players set #lo mq 1",
+                "scoreboard players set #terms mq 3",
+                "scoreboard players set #sub mq 0",
+                "scoreboard players set #mul mq 0",
+            ],
+        )
+        self.assertIn("scoreboard players set #max mq 99\nscoreboard players set #lo mq 10\nscoreboard players set #terms mq 3\nscoreboard players set #sub mq 1\nscoreboard players set #mul mq 1", self.fns["level/g2_hard"])
+        self.assertIn("scoreboard players set #terms mq 2", self.fns["level/g2_easy"])
+        self.assertNotIn("level/easy", self.fns)
+        # 古いワールドには #max だけ残っているので、この改訂で増えた #terms で未設定を判定する
+        self.assertIn("unless score #terms mq = #terms mq run function mathquiz:level/g1_normal", self.fns["load"])
+        self.assertNotIn("unless score #max mq", self.fns["load"])
+        self.assertIn("こたえは 0〜99", self.fns["level/g2_normal"])
 
     def test_check_is_gated_by_lock_and_room(self):
         lines = [l for l in self.fns["check"].splitlines() if l.strip()]
